@@ -4,6 +4,13 @@ struct SettingsFixture {
   void saveToFile() {}
 } settingsFixture;
 #define SETTINGS settingsFixture
+#include <optional>
+
+struct RenderLock {
+  static bool heldByCurrentTask() { return false; }
+};
+
+using SettingInfo = int;
 class SettingsActivity {
  public:
   bool categoryHome = false;
@@ -12,6 +19,8 @@ class SettingsActivity {
   bool rotation = false, inverted = false;
   int ring = 1, rebuilds = 0, updates = 0, resets = 0, homeCalls = 0;
   std::vector<int> mangaSettings{1, 2}, readerSettings{3, 4, 5, 6};
+  std::vector<SettingInfo> leftButtonSettings{7, 8, 9}, rightButtonSettings{10, 11, 12}, powerButtonSettings{13, 14, 15, 16};
+  fui::ListNav buttonReturnNav;
   const std::vector<int>* currentSettings = &readerSettings;
   fui::ListNav nav;
   MappedInputManager mappedInput;
@@ -41,6 +50,9 @@ class SettingsActivity {
     rebuildSettingsLists();
   }
   void rebuildSettingsLists();
+  StrId buttonPageTitle() const;
+  void openButtonPage(const std::vector<SettingInfo>& settings);
+  void closeButtonPage();
   void openManga();
   void closeManga();
   bool handleButtons();
@@ -79,5 +91,20 @@ static void settingsNavigation() {
     a.mappedInput.confirm = true;
     CHECK(a.handleButtons());
     CHECK(a.currentSettings == &a.readerSettings && a.homeCalls == 0);
+
+    a.mappedInput.confirm = false;
+    for (const auto* page : {&a.leftButtonSettings, &a.rightButtonSettings, &a.powerButtonSettings}) {
+      a.nav.top = 2;
+      a.nav.selected = 3;
+      a.openButtonPage(*page);
+      CHECK(a.currentSettings == page && a.settingsCount == int(page->size()) && a.nav.top == 0);
+      a.rebuildSettingsLists();
+      CHECK(a.currentSettings == page && a.settingsCount == int(page->size()));
+      a.mappedInput.back = true;
+      CHECK(a.handleButtons());
+      a.mappedInput.back = false;
+      CHECK(a.currentSettings == &a.readerSettings && a.nav.top == 2);
+      CHECK(a.nav.selected == (touch ? 0 : 3) && a.homeCalls == 0);
+    }
   }
 }

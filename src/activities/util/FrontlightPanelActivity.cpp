@@ -370,10 +370,11 @@ void FrontlightPanelActivity::loop() {
     syncLightState(false);
     requestUpdate();
   }
-  if (mappedInput.sideButtonAction() == SideButtonAction::ToggleWarmth ||
-      mappedInput.homeButtonAction() == HomeButtonAction::ToggleFrontlight) {
+  const bool warmthShortcut = mappedInput.sideButtonAction() == SideButtonAction::ToggleWarmth ||
+                              mappedInput.homeButtonAction() == HomeButtonAction::ToggleWarmth;
+  if (warmthShortcut || mappedInput.homeButtonAction() == HomeButtonAction::ToggleFrontlight) {
     RenderLock lock;
-    if (mappedInput.sideButtonAction() == SideButtonAction::ToggleWarmth)
+    if (warmthShortcut)
       toggleWarmth();
     else
       toggleLight();

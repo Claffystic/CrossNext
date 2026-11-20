@@ -290,7 +290,7 @@ class BaseTheme {
                               int rowHeight = -1) const;
   static void drawSelectionHandle(const GfxRenderer& renderer, Rect rect, bool left);
   static void drawSelectionActions(const GfxRenderer& renderer, Rect rect, bool singleWord);
-  virtual Rect drawPopup(const GfxRenderer& renderer, const char* message) const;
+  virtual Rect drawPopup(const GfxRenderer& renderer, const char* message, bool preserveFrame = false) const;
   Rect drawLoadingScreen(const GfxRenderer& renderer, const char* message) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   static void drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage, const int pageCount,

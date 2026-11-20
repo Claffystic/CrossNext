@@ -1,5 +1,7 @@
 #include "SettingsList.h"
 
+#include "apps_local/power/PowerButtonPolicy.h"
+
 #include <array>
 #include <utility>
 
@@ -190,14 +192,23 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                                "sideLeftAction", StrId::STR_CAT_CONTROLS));
   emit(SettingInfo::StaticEnum(StrId::STR_SIDE_RIGHT_ACTION, &CrossPointSettings::sideRightAction, side_button::LABELS,
                                "sideRightAction", StrId::STR_CAT_CONTROLS));
-  emit(SettingInfo::Enum(StrId::STR_POWER_SHORT_ACTION, &CrossPointSettings::touchPowerShortAction,
-                         {StrId::STR_SLEEP, StrId::STR_POWER_MENU, StrId::STR_TOGGLE_FRONTLIGHT,
-                          StrId::STR_SIDE_TOGGLE_WARMTH, StrId::STR_FORCE_REFRESH, StrId::STR_HOME, StrId::STR_IGNORE},
-                         "touchPowerShortAction", StrId::STR_CAT_CONTROLS));
-  emit(SettingInfo::Enum(StrId::STR_POWER_LONG_ACTION, &CrossPointSettings::touchPowerLongAction,
-                         {StrId::STR_SLEEP, StrId::STR_POWER_MENU, StrId::STR_TOGGLE_FRONTLIGHT,
-                          StrId::STR_SIDE_TOGGLE_WARMTH, StrId::STR_FORCE_REFRESH, StrId::STR_HOME, StrId::STR_IGNORE},
-                         "touchPowerLongAction", StrId::STR_CAT_CONTROLS));
+  const auto sideGesture = [&](StrId label, uint8_t CrossPointSettings::* field, const char* key) {
+    emit(SettingInfo::StaticEnum(label, field, side_button::LABELS, key));
+  };
+  sideGesture(StrId::STR_BUTTON_DOUBLE_PRESS, &CrossPointSettings::sideLeftDoubleAction, "sideLeftDoubleAction");
+  sideGesture(StrId::STR_BUTTON_DOUBLE_PRESS, &CrossPointSettings::sideRightDoubleAction, "sideRightDoubleAction");
+  sideGesture(StrId::STR_BUTTON_HOLD, &CrossPointSettings::sideLeftHoldAction, "sideLeftHoldAction");
+  sideGesture(StrId::STR_BUTTON_HOLD, &CrossPointSettings::sideRightHoldAction, "sideRightHoldAction");
+  auto powerLabels = std::span<const StrId>(powermenu::ACTION_LABELS);
+  if (!BoardConfig::isX4Pro())
+    powerLabels = powerLabels.first(unsigned(powermenu::PressAction::ToggleTouchscreen) +
+                                    unsigned(BoardConfig::hasHomeKey()));
+  emit(SettingInfo::StaticEnum(StrId::STR_POWER_SHORT_ACTION, &CrossPointSettings::touchPowerShortAction,
+                               powerLabels, "touchPowerShortAction", StrId::STR_CAT_CONTROLS));
+  emit(SettingInfo::StaticEnum(StrId::STR_BUTTON_DOUBLE_PRESS, &CrossPointSettings::touchPowerDoubleAction,
+                               powerLabels, "touchPowerDoubleAction"));
+  emit(SettingInfo::StaticEnum(StrId::STR_POWER_LONG_ACTION, &CrossPointSettings::touchPowerLongAction,
+                               powerLabels, "touchPowerLongAction", StrId::STR_CAT_CONTROLS));
   emit(SettingInfo::Enum(StrId::STR_LEFT_EDGE_LIGHT, &CrossPointSettings::leftEdgeLightAction,
                          {StrId::STR_NONE_OPT, StrId::STR_BRIGHTNESS, StrId::STR_WARMTH}, "leftEdgeLightAction",
                          StrId::STR_CAT_CONTROLS));
@@ -214,6 +225,16 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                            sizeof(SETTINGS.sideLeftShortcutTitle), "sideLeftShortcutTitle"));
   emit(SettingInfo::String(StrId::STR_HOME_SHORTCUT_TARGET, SETTINGS.sideRightShortcutTitle,
                            sizeof(SETTINGS.sideRightShortcutTitle), "sideRightShortcutTitle"));
+  const auto sideShortcut = [&](char (&target)[40], const char* key) {
+    emit(SettingInfo::String(StrId::STR_HOME_SHORTCUT_TARGET, target, sizeof(target), key));
+  };
+  sideShortcut(SETTINGS.sideLeftDoubleShortcutTitle, "sideLeftDoubleShortcutTitle");
+  sideShortcut(SETTINGS.sideRightDoubleShortcutTitle, "sideRightDoubleShortcutTitle");
+  sideShortcut(SETTINGS.sideLeftHoldShortcutTitle, "sideLeftHoldShortcutTitle");
+  sideShortcut(SETTINGS.sideRightHoldShortcutTitle, "sideRightHoldShortcutTitle");
+  sideShortcut(SETTINGS.powerShortcutTitle, "powerShortcutTitle");
+  sideShortcut(SETTINGS.powerDoubleShortcutTitle, "powerDoubleShortcutTitle");
+  sideShortcut(SETTINGS.powerHoldShortcutTitle, "powerHoldShortcutTitle");
   emit(SettingInfo::Toggle(StrId::STR_TOUCHSCREEN_LOCK, &CrossPointSettings::touchScreenLocked, "touchScreenLocked",
                            StrId::STR_CAT_CONTROLS));
   emit(SettingInfo::Toggle(StrId::STR_TOUCH_READER_CONTROLS, &CrossPointSettings::touchReaderControls,

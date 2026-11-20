@@ -303,7 +303,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t textAntiAliasing = 0;
   // Short power button click behaviour
   uint8_t shortPwrBtn = IGNORE;
-  uint8_t touchPowerShortAction = 0, touchPowerLongAction = 1;
+  uint8_t touchPowerShortAction = 0, touchPowerLongAction = 1, touchPowerDoubleAction = 6;
   uint8_t leftEdgeLightAction = 0, rightEdgeLightAction = 0;
   uint8_t powerWakeMode = static_cast<uint8_t>(powermenu::WakeMode::ShortPress);
   // X4 Pro: double-click power toggles the frontlight. Disabling frees the
@@ -320,6 +320,10 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t homeRecentBookCount = 3;
   uint8_t sideLeftAction = static_cast<uint8_t>(SideButtonAction::Navigation);
   uint8_t sideRightAction = static_cast<uint8_t>(SideButtonAction::Navigation);
+  uint8_t sideLeftDoubleAction = uint8_t(SideButtonAction::Ignore);
+  uint8_t sideRightDoubleAction = uint8_t(SideButtonAction::Ignore);
+  uint8_t sideLeftHoldAction = uint8_t(SideButtonAction::Navigation);
+  uint8_t sideRightHoldAction = uint8_t(SideButtonAction::Navigation);
   // Button layouts (front layout retained for migration only)
   uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
   uint8_t sideButtonLayout = PREV_NEXT;
@@ -448,8 +452,15 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   char homeButtonShortcutTitle[40] = "READING QUEST";
   char homeButtonDoubleShortcutTitle[40] = "READING QUEST";
   char homeButtonLongShortcutTitle[40] = "READING QUEST";
+  char powerShortcutTitle[40] = "READING QUEST";
+  char powerDoubleShortcutTitle[40] = "READING QUEST";
+  char powerHoldShortcutTitle[40] = "READING QUEST";
   char sideLeftShortcutTitle[40] = "READING QUEST";
   char sideRightShortcutTitle[40] = "READING QUEST";
+  char sideLeftDoubleShortcutTitle[40] = "READING QUEST";
+  char sideRightDoubleShortcutTitle[40] = "READING QUEST";
+  char sideLeftHoldShortcutTitle[40] = "READING QUEST";
+  char sideRightHoldShortcutTitle[40] = "READING QUEST";
   uint8_t rotationDirection = 0;  // 0 left, 1 right
   // Which gestures turn the page in each direction (PAGE_TURN_GESTURE).
   uint8_t pageTurnGesture = TAP_AND_SWIPE;

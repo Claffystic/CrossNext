@@ -4166,6 +4166,8 @@ STR_CAR_TIER_HINT3: "1–2 culpables y pistas enlazadas."
 STR_READER_BOTTOM_SHEET: "Desplegable de lectura"
 STR_TOGGLE_TOUCHSCREEN: "Bloquear/desbloquear touch"
 STR_TOUCHSCREEN_LOCK: "Bloquear pantalla táctil"
+STR_TOUCHSCREEN_ENABLED: "Pantalla táctil activada"
+STR_TOUCHSCREEN_DISABLED: "Pantalla táctil desactivada"
 
 STR_HOME_OPEN_SHORTCUT: "Abrir juego o app"
 STR_HOME_SHORTCUT_TARGET: "Destino del atajo"

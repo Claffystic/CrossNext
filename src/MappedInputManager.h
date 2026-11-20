@@ -192,6 +192,8 @@ class MappedInputManager {
   HomeButtonAction homeButtonAction() const { return homeAction; }
   SideButtonAction sideButtonAction() const { return sideEvent.action; }
   SideButtonKey sideButtonKey() const { return sideEvent.key; }
+  PhysicalPress sideButtonPress() const { return sideEvent.press; }
+  void cancelPhysicalSidePresses() const;
   void resetHomeButtonInput() const {
     homeButtonInput.reset();
     deferredHomeAction = HomeButtonAction::Ignore;
@@ -267,6 +269,11 @@ class MappedInputManager {
   bool readerTextContext = false;
   mutable bool readerHomeOwned = false;
   mutable readertext::MenuButtonInput readerMenuButtons;
+  void updateSideButtonBindings(uint8_t customHolds, uint32_t now) const;
+  mutable PhysicalButtonInput sidePresses[2];
+  mutable uint8_t managedSideButtons = 0;
+  mutable uint8_t sideNavigationEdges = 0;
+  mutable unsigned long sideNavigationHeldMs = 0;
   mutable edgelight::Event edgeLight;
   mutable HomeButtonAction deferredHomeAction = HomeButtonAction::Ignore;
   mutable bool touchHeldOverrideValid = false;

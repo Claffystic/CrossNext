@@ -103,11 +103,10 @@ int main(int argc, char** argv) {
                                       StrId::STR_SLEEP_READING_GOAL, StrId::STR_HIDE_BATTERY,
                                       StrId::STR_REFRESH_FREQ,       StrId::STR_RESTORE_LIGHT_ON_WAKE,
                                       StrId::STR_NIGHT_MODE,         StrId::STR_QUICK_CUSTOMISE};
-  static constexpr StrId controls[] = {StrId::STR_HOME_BUTTON,       StrId::STR_ROTATION_DIRECTION,
-                                       StrId::STR_SIDE_BTN_LAYOUT,   StrId::STR_SIDE_LEFT_ACTION,
-                                       StrId::STR_SIDE_RIGHT_ACTION, StrId::STR_POWER_SHORT_ACTION,
-                                       StrId::STR_POWER_LONG_ACTION, StrId::STR_LONG_PRESS_BEHAVIOR,
-                                       StrId::STR_POWER_WAKE_MODE,   StrId::STR_LEFT_EDGE_LIGHT};
+  static constexpr StrId controls[] = {StrId::STR_HOME_BUTTON, StrId::STR_DIR_LEFT,
+                                       StrId::STR_DIR_RIGHT, StrId::STR_SETTINGS_POWER,
+                                       StrId::STR_ROTATION_DIRECTION, StrId::STR_SIDE_BTN_LAYOUT,
+                                       StrId::STR_LONG_PRESS_BEHAVIOR, StrId::STR_LEFT_EDGE_LIGHT};
   static constexpr StrId touch[] = {StrId::STR_TOUCHSCREEN_LOCK,     StrId::STR_TOUCH_READER_CONTROLS,
                                     StrId::STR_NEXT_PAGE_GESTURE,    StrId::STR_PREV_PAGE_GESTURE,
                                     StrId::STR_XTC_INVERT_DIRECTION, StrId::STR_KEYBOARD_LAYOUTS};

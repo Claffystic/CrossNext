@@ -2,13 +2,25 @@
 
 The current per-screen behavior is documented in [Side-button navigation](button-navigation.md).
 
+## Choosing an action on the X4 Pro
+
+Left, Right and Power are under **Settings > Controls > Physical buttons**.
+The capacitive **Home button** has its own page in **Controls**. Each key offers
+the same shortcuts on each gesture, including sleep, the power menu, frontlight
+and touchscreen controls, opening an app, and reader actions. Chapter and page
+rotation shortcuts require an open EPUB. The side keys also offer their built-in
+navigation and shared-hold defaults. Holding Home restores touch while the
+touchscreen is locked.
+
 ## Assigning the X4 Pro side keys
 
-In **Settings > Controls > Left side button / Right side button**, each key can
-open a dedicated action screen. Keep **Navigation and page turns**, or choose
+Under **Settings > Controls**, open **Left** or **Right** in the **Physical buttons** section, then
+select **Single press**, **Double press**, or **Hold**. Single press can keep
+**Navigation and page turns**. Other choices include
 Sleep, Toggle frontlight, Toggle warm light, Home, Reader menu, Bookmark,
-Dictionary, Save quote, Sync, Refresh, Toggle touchscreen, Next page, Footnotes,
-Confirm or Ignore. **Open game or app** opens the same installed-app catalogue
+Sync, Refresh, Toggle touchscreen, Previous page, Next page, Previous
+chapter, Next chapter, Rotate page left, Rotate page right, Confirm or Ignore.
+Chapter and rotation bindings apply to EPUBs. **Open game or app** opens the same installed-app catalogue
 used by Home gestures; each side key keeps its own shortcut target.
 Reader-specific actions require a compatible open book. Both keys default to
 Navigation. The new bindings and shortcut targets use the existing microSD
@@ -19,10 +31,12 @@ needed; the next press returns to cool light at the same brightness. It reuses
 the control center's warmth memory. These controls still work while the
 control center is open and its displayed values stay consistent.
 
-A reassigned key no longer publishes presses, holds, repeats or releases to
-page turning or menu navigation. Its configured action runs once on release.
-Choose Navigation again to restore the existing side-button layout and
-orientation mapping. These bindings do not change the Home key's tap,
+A configured hold fires after about 700 ms. A double press uses a 350 ms
+window. When double press is assigned, the single press waits for that window
+and only one action fires. Choose **Ignore** for Double press to remove the
+wait, or **Use shared reader hold setting** under Hold to retain the existing
+reader hold behavior. **Navigation and page turns** uses the shared layout
+and orientation mapping. These bindings do not change the Home key's tap,
 double-tap or hold settings. The navigation descriptions below apply to keys
 that retain Navigation.
 
@@ -39,7 +53,9 @@ The adjacent chapter page counter is a separate display option in
 **Reading > Status bar**; hide it to show the whole-book percentage alone.
 The progress bar also has independent Book / Chapter / Hide options.
 
-In **Settings > Controls > Power button wake**, choose **Short press** (the
+Under **Settings > Controls**, open **Power** in **Physical buttons** and select
+**Wake from sleep**. The same Power page has separate Single press, Double
+press and Hold actions for when the device is awake. Choose **Short press** (the
 default) to leave suspension with one brief Power press, or **Press and hold**
 to require holding Power through the initial boot check. This preference is
 independent of the short-Power action while the reader is awake and is also

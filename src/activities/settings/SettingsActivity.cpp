@@ -172,6 +172,9 @@ void SettingsActivity::rebuildSettingsLists() {
   connectivitySettings.clear();
   deviceSettings.clear();
   mangaSettings.clear();
+  leftButtonSettings.clear();
+  rightButtonSettings.clear();
+  powerButtonSettings.clear();
   displaySettings.reserve(32);
   readerSettings.reserve(32);
   controlsSettings.reserve(32);
@@ -202,6 +205,29 @@ void SettingsActivity::rebuildSettingsLists() {
         setting.valuePtr == &CrossPointSettings::xtcInvertPageDirection) {
       mangaSettings.push_back(std::move(setting));
       return;
+    }
+    if (BoardConfig::isX4Pro()) {
+      for (const auto press : {PhysicalPress::Single, PhysicalPress::Double, PhysicalPress::Hold}) {
+        const auto left = side_button::actionField(SideButtonKey::Left, press);
+        if (setting.valuePtr != left && setting.valuePtr != side_button::actionField(SideButtonKey::Right, press))
+          continue;
+        if (press == PhysicalPress::Single) setting.nameId = StrId::STR_BUTTON_SINGLE_PRESS;
+        (setting.valuePtr == left ? leftButtonSettings : rightButtonSettings).push_back(std::move(setting));
+        return;
+      }
+      if (setting.valuePtr == &CrossPointSettings::touchPowerShortAction ||
+          setting.valuePtr == &CrossPointSettings::touchPowerDoubleAction ||
+          setting.valuePtr == &CrossPointSettings::touchPowerLongAction ||
+          setting.valuePtr == &CrossPointSettings::powerWakeMode) {
+        if (setting.valuePtr == &CrossPointSettings::touchPowerShortAction)
+          setting.nameId = StrId::STR_BUTTON_SINGLE_PRESS;
+        else if (setting.valuePtr == &CrossPointSettings::touchPowerLongAction)
+          setting.nameId = StrId::STR_BUTTON_HOLD;
+        else if (setting.valuePtr == &CrossPointSettings::powerWakeMode)
+          setting.nameId = StrId::STR_BUTTON_WAKE;
+        powerButtonSettings.push_back(std::move(setting));
+        return;
+      }
     }
     // home_button::isSetting: upstream's Home Button Gestures rows render on
     // their own screen, not in this list.
@@ -256,6 +282,13 @@ void SettingsActivity::rebuildSettingsLists() {
   if (readingResourcesReady) {
     readerSettings.push_back(buildDictionarySetting(dictionaries));
     readerSettings.push_back(buildDictionarySetting(dictionaries, true));
+  }
+
+  if (BoardConfig::isX4Pro()) {
+    controlsSettings.insert(controlsSettings.begin(),
+                            {SettingInfo::Action(StrId::STR_DIR_LEFT, SettingAction::LeftButton),
+                             SettingInfo::Action(StrId::STR_DIR_RIGHT, SettingAction::RightButton),
+                             SettingInfo::Action(StrId::STR_SETTINGS_POWER, SettingAction::PowerButton)});
   }
 
   // Append device-only ACTION items
@@ -343,6 +376,9 @@ void SettingsActivity::rebuildSettingsLists() {
     currentSettings = &mangaSettings;
     settingsCount = int(mangaSettings.size());
     rebuildRowItems();
+  } else if (buttonPageTitle() != StrId::STR_NONE_OPT) {
+    settingsCount = int(currentSettings->size());
+    rebuildRowItems();
   } else
     selectCategory(selectedCategoryIndex);
 }
@@ -395,7 +431,8 @@ void SettingsActivity::rebuildRowItems() {
     item.label = I18N.get(settings[i].nameId);
     item.actionValue = static_cast<int16_t>(i);
     const auto section = [&](const SettingInfo& setting) -> StrId {
-      if (currentSettings == &mangaSettings) return StrId::STR_NONE_OPT;
+      if (currentSettings == &mangaSettings || buttonPageTitle() != StrId::STR_NONE_OPT)
+        return StrId::STR_NONE_OPT;
       if (selectedCategoryIndex < 3)
         return settingsGroupLabel(settingsGroup(setting, selectedCategoryIndex), selectedCategoryIndex);
       if (selectedCategoryIndex == 3) {
@@ -445,6 +482,35 @@ void SettingsActivity::rebuildRowItems() {
     item.icon = settingsicons::normalizeRowIcon(item.icon);
     rowItems_.push_back(item);
   }
+}
+
+StrId SettingsActivity::buttonPageTitle() const {
+  if (currentSettings == &leftButtonSettings) return StrId::STR_DIR_LEFT;
+  if (currentSettings == &rightButtonSettings) return StrId::STR_DIR_RIGHT;
+  if (currentSettings == &powerButtonSettings) return StrId::STR_SETTINGS_POWER;
+  return StrId::STR_NONE_OPT;
+}
+
+void SettingsActivity::openButtonPage(const std::vector<SettingInfo>& settings) {
+  std::optional<RenderLock> lock;
+  if (!RenderLock::heldByCurrentTask()) lock.emplace();
+  buttonReturnNav = activeNav();
+  if (mappedInput.hasTouch()) buttonReturnNav.selected = 0;
+  currentSettings = &settings;
+  settingsCount = int(settings.size());
+  activeNav().reset();
+  rebuildRowItems();
+  resetUi();
+  requestUpdate();
+}
+
+void SettingsActivity::closeButtonPage() {
+  std::optional<RenderLock> lock;
+  if (!RenderLock::heldByCurrentTask()) lock.emplace();
+  selectCategory(selectedCategoryIndex);
+  activeNav() = buttonReturnNav;
+  resetUi();
+  requestUpdate();
 }
 
 void SettingsActivity::openManga() {
@@ -581,6 +647,10 @@ bool SettingsActivity::handleButtons() {
     if (categoryHome) {
       activateIndex(std::max(0, ringPos() - 1));
     } else if (ringPos() == 0) {
+      if (buttonPageTitle() != StrId::STR_NONE_OPT) {
+        closeButtonPage();
+        return true;
+      }
       if (currentSettings == &mangaSettings) {
         closeManga();
         return true;
@@ -595,6 +665,10 @@ bool SettingsActivity::handleButtons() {
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    if (buttonPageTitle() != StrId::STR_NONE_OPT) {
+      closeButtonPage();
+      return true;
+    }
     if (currentSettings == &mangaSettings) {
       closeManga();
       return true;
@@ -625,14 +699,21 @@ void SettingsActivity::toggleCurrentSetting() {
   const bool sleepScreenChanged = setting.valuePtr == &CrossPointSettings::sleepScreen;
   const bool quickResumeTimeoutChanged = setting.valuePtr == &CrossPointSettings::quickResumeSleepScreen;
 
-  if (setting.valuePtr == &CrossPointSettings::sideLeftAction ||
+  const bool isSidePage = currentSettings == &leftButtonSettings || currentSettings == &rightButtonSettings;
+  const bool isPowerBinding = currentSettings == &powerButtonSettings &&
+                              setting.valuePtr != &CrossPointSettings::powerWakeMode;
+  if (isPowerBinding || isSidePage || setting.valuePtr == &CrossPointSettings::sideLeftAction ||
       setting.valuePtr == &CrossPointSettings::sideRightAction) {
-    const auto binding = setting.valuePtr == &CrossPointSettings::sideLeftAction
-                             ? HomeButtonSettingsActivity::Binding::SideLeft
-                             : HomeButtonSettingsActivity::Binding::SideRight;
-    auto next = makeUniqueNoThrow<HomeButtonSettingsActivity>(renderer, mappedInput, binding);
+    const bool left = currentSettings == &leftButtonSettings || setting.valuePtr == &CrossPointSettings::sideLeftAction;
+    const auto binding = isPowerBinding ? HomeButtonSettingsActivity::Binding::Power
+                         : left         ? HomeButtonSettingsActivity::Binding::SideLeft
+                                        : HomeButtonSettingsActivity::Binding::SideRight;
+    const auto press = setting.nameId == StrId::STR_BUTTON_DOUBLE_PRESS ? PhysicalPress::Double
+                       : setting.nameId == StrId::STR_BUTTON_HOLD       ? PhysicalPress::Hold
+                                                                       : PhysicalPress::Single;
+    auto next = makeUniqueNoThrow<HomeButtonSettingsActivity>(renderer, mappedInput, binding, nullptr, press);
     if (!next) {
-      LOG_ERR("SET", "OOM: side button settings");
+      LOG_ERR("SET", "OOM: button settings");
       return;
     }
     startActivityForResult(std::move(next), [this](const ActivityResult&) {
@@ -732,6 +813,15 @@ void SettingsActivity::toggleCurrentSetting() {
     auto resultHandler = [this](const ActivityResult&) { persistSettings(); };
 
     switch (setting.action) {
+      case SettingAction::LeftButton:
+        openButtonPage(leftButtonSettings);
+        return;
+      case SettingAction::RightButton:
+        openButtonPage(rightButtonSettings);
+        return;
+      case SettingAction::PowerButton:
+        openButtonPage(powerButtonSettings);
+        return;
       case SettingAction::Manga:
         openManga();
         return;
@@ -955,6 +1045,10 @@ void SettingsActivity::openSleepTimeoutPicker() {
 std::string SettingsActivity::settingValueText(const SettingInfo& setting) {
   if (setting.action == SettingAction::HomeButton) return tr(STR_CONFIGURE);
   if (setting.action == SettingAction::Language) return I18N.getLanguageName();
+  if ((setting.valuePtr == &CrossPointSettings::sideLeftHoldAction ||
+       setting.valuePtr == &CrossPointSettings::sideRightHoldAction) &&
+      sideNavigates(SETTINGS.*setting.valuePtr))
+    return tr(STR_BUTTON_SHARED_HOLD);
   if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     // Guard like the valueGetter branch below: a corrupt/migrated settings
     // byte must not index past the enum table.
@@ -1053,11 +1147,12 @@ void SettingsActivity::buildScreen(UiScreen& screen) {
 }
 
 void SettingsActivity::drawChrome() {
-  pixelui::drawHeader(renderer,
-                      categoryHome                        ? tr(STR_SETTINGS_TITLE)
-                      : currentSettings == &mangaSettings ? tr(STR_SETTINGS_MANGA)
-                                                          : I18N.get(categoryNames[selectedCategoryIndex]),
-                      I18N.getLanguage() != Language::EN);
+  const auto buttonTitle = buttonPageTitle();
+  const auto title = categoryHome                        ? StrId::STR_SETTINGS_TITLE
+                     : currentSettings == &mangaSettings ? StrId::STR_SETTINGS_MANGA
+                     : buttonTitle != StrId::STR_NONE_OPT ? buttonTitle
+                                                          : categoryNames[selectedCategoryIndex];
+  pixelui::drawHeader(renderer, I18N.get(title), I18N.getLanguage() != Language::EN);
 }
 
 void SettingsActivity::drawFooter() {

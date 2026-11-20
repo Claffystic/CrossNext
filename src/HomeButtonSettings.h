@@ -7,7 +7,7 @@
 namespace home_button {
 inline constexpr StrId ACTION_LABELS[] = {StrId::STR_HOME_SHORTCUT,
                                           StrId::STR_IGNORE,
-                                          StrId::STR_PAGE_TURN,
+                                          StrId::STR_NEXT_PAGE,
                                           StrId::STR_FORCE_REFRESH,
                                           StrId::STR_FOOTNOTES,
                                           StrId::STR_CONFIRM,
@@ -20,7 +20,15 @@ inline constexpr StrId ACTION_LABELS[] = {StrId::STR_HOME_SHORTCUT,
                                           StrId::STR_TOGGLE_TOUCHSCREEN,
                                           StrId::STR_HOME_OPEN_SHORTCUT,
                                           StrId::STR_HOME_OPEN_SHORTCUT,
-                                          StrId::STR_HOME_OPEN_SHORTCUT};
+                                          StrId::STR_HOME_OPEN_SHORTCUT,
+                                          StrId::STR_SLEEP,
+                                          StrId::STR_POWER_MENU,
+                                          StrId::STR_SIDE_TOGGLE_WARMTH,
+                                          StrId::STR_PREV_PAGE,
+                                          StrId::STR_BT_PREV_CHAPTER,
+                                          StrId::STR_BT_NEXT_CHAPTER,
+                                          StrId::STR_BUTTON_ROTATE_LEFT,
+                                          StrId::STR_BUTTON_ROTATE_RIGHT};
 static_assert(sizeof(ACTION_LABELS) / sizeof(ACTION_LABELS[0]) == static_cast<unsigned>(HomeButtonAction::Count));
 inline constexpr StrId GESTURE_LABELS[] = {StrId::STR_HOME_BUTTON_TAP, StrId::STR_HOME_BUTTON_DOUBLE_TAP,
                                            StrId::STR_HOME_BUTTON_LONG_PRESS};

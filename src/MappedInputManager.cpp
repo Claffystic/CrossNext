@@ -11,6 +11,7 @@
 #include <cstdlib>
 
 #include "CrossPointSettings.h"
+#include "SideButtonSettings.h"
 #include "components/HeaderBackTapTarget.h"
 #include "components/UITheme.h"
 
@@ -54,26 +55,26 @@ void MappedInputManager::update(const bool deferHomeButtonAction) const {
   // Repeating this for the same frame's edges is idempotent.
   settleReleaseGate();
   sideEvent = {};
+  managedSideButtons = 0;
+  sideNavigationEdges = 0;
+  sideNavigationHeldMs = 0;
+  const uint8_t customHolds =
+      BoardConfig::isX4Pro()
+          ? uint8_t((!sideNavigates(SETTINGS.sideLeftHoldAction) ? 1u : 0u) |
+                    (!sideNavigates(SETTINGS.sideRightHoldAction) ? 2u : 0u))
+          : 0;
   const uint8_t readerHeld =
       (gpio.isPressed(HalGPIO::BTN_UP) && !releaseGate.swallowsRelease(HalGPIO::BTN_UP) ? 1u : 0u) |
       (gpio.isPressed(HalGPIO::BTN_DOWN) && !releaseGate.swallowsRelease(HalGPIO::BTN_DOWN) ? 2u : 0u);
   const auto readerSides =
       readerMenuButtons.update(readerTextContext && !isTouchscreenLocked() && homeAction == HomeButtonAction::Ignore,
-                               readertext::menuTrigger(SETTINGS.readerTextTrigger), readerHeld, millis());
+                               readertext::menuTrigger(SETTINGS.readerTextTrigger), readerHeld & ~customHolds, millis());
   if (readerSides) {
     if (readerSides & 1u) suppressedNavigationReleases |= uint8_t(1u << HalGPIO::BTN_UP);
     if (readerSides & 2u) suppressedNavigationReleases |= uint8_t(1u << HalGPIO::BTN_DOWN);
     homeAction = HomeButtonAction::ReaderMenu;
   }
-  if (gpio.hasTouch() && homeAction == HomeButtonAction::Ignore) {
-    sideEvent =
-        sideReleasedEvent(SETTINGS.sideLeftAction, SETTINGS.sideRightAction,
-                          !(suppressedNavigationReleases & (1u << HalGPIO::BTN_UP)) &&
-                              !releaseGate.swallowsRelease(HalGPIO::BTN_UP) && gpio.wasReleased(HalGPIO::BTN_UP),
-                          !(suppressedNavigationReleases & (1u << HalGPIO::BTN_DOWN)) &&
-                              !releaseGate.swallowsRelease(HalGPIO::BTN_DOWN) && gpio.wasReleased(HalGPIO::BTN_DOWN));
-    homeAction = sideHomeAction(sideEvent.action);
-  }
+  if (gpio.hasTouch()) updateSideButtonBindings(customHolds, millis());
   if (deferHomeButtonAction) {
     // Keep the first global action, including which side key owns a shortcut.
     const bool empty =
@@ -96,9 +97,57 @@ void MappedInputManager::update(const bool deferHomeButtonAction) const {
   }
 }
 
+void MappedInputManager::updateSideButtonBindings(uint8_t customHolds, uint32_t now) const {
+  for (const auto key : {SideButtonKey::Left, SideButtonKey::Right}) {
+    const bool right = key == SideButtonKey::Right;
+    const uint8_t index = right ? HalGPIO::BTN_DOWN : HalGPIO::BTN_UP;
+    const uint8_t bit = 1u << index;
+    const auto single = SETTINGS.*side_button::actionField(key, PhysicalPress::Single);
+    const auto doubleAction = SETTINGS.*side_button::actionField(key, PhysicalPress::Double);
+    const bool doubleEnabled = BoardConfig::isX4Pro() && !sideNavigates(doubleAction) &&
+                               doubleAction != uint8_t(SideButtonAction::Ignore);
+    const bool customHold = (customHolds & (right ? 2u : 1u)) != 0;
+    const bool managed = doubleEnabled || customHold;
+    if (managed) managedSideButtons |= bit;
+
+    auto& input = sidePresses[unsigned(key)];
+    if ((suppressedNavigationReleases & bit) || releaseGate.swallowsRelease(index)) {
+      input.reset();
+      continue;
+    }
+
+    auto press = PhysicalPress::None;
+    bool legacyHold = false;
+    if (managed) {
+      // Keep shared chapter/orientation holds for keys that still use navigation.
+      legacyHold = !customHold && sideNavigates(single) && readerTextContext &&
+                   SETTINGS.longPressButtonBehavior != CrossPointSettings::OFF;
+      press = input.update(now, gpio.wasPressed(index), gpio.wasReleased(index), gpio.isPressed(index),
+                           doubleEnabled, customHold || legacyHold);
+    } else {
+      input.reset();
+      if (gpio.wasReleased(index) && !sideNavigates(single)) press = PhysicalPress::Single;
+    }
+    if (press == PhysicalPress::None) continue;
+
+    const auto action = legacyHold && press == PhysicalPress::Hold
+                            ? SideButtonAction::Navigation
+                            : SideButtonAction(SETTINGS.*side_button::actionField(key, press));
+    if (action == SideButtonAction::Navigation) {
+      sideNavigationEdges |= bit;
+      if (press == PhysicalPress::Hold) sideNavigationHeldMs = PhysicalButtonInput::HoldMs;
+    } else if (sideEvent.action == SideButtonAction::Navigation && homeAction == HomeButtonAction::Ignore) {
+      sideEvent = {action, key, press};
+      homeAction = sideHomeAction(action);
+    }
+  }
+}
+
 uint32_t MappedInputManager::nextActionDelayMs(const uint32_t now, const uint32_t maximum) const {
   if (sideStandaloneAction(deferredSideEvent.action) || deferredHomeAction != HomeButtonAction::Ignore) return 0;
-  return gpio.hasHomeKey() ? homeButtonInput.nextActionDelayMs(now, maximum) : maximum;
+  auto delay = gpio.hasHomeKey() ? homeButtonInput.nextActionDelayMs(now, maximum) : maximum;
+  for (const auto& input : sidePresses) delay = input.nextDelay(now, delay);
+  return delay;
 }
 
 bool MappedInputManager::isNavDirectionSwapped() const {
@@ -145,6 +194,9 @@ bool MappedInputManager::readButton(const uint8_t buttonIndex, bool (HalGPIO::*f
   const bool remoteSide = (remoteInput.button == RemoteButton::SideLeft && buttonIndex == HalGPIO::BTN_UP) ||
                           (remoteInput.button == RemoteButton::SideRight && buttonIndex == HalGPIO::BTN_DOWN);
   if (remoteSide && (fn == &HalGPIO::wasPressed || fn == &HalGPIO::wasReleased)) return true;
+  if ((buttonIndex == HalGPIO::BTN_UP || buttonIndex == HalGPIO::BTN_DOWN) &&
+      (managedSideButtons & (1u << buttonIndex)))
+    return (sideNavigationEdges & (1u << buttonIndex)) && (fn == &HalGPIO::wasPressed || fn == &HalGPIO::wasReleased);
   // Reassigned side keys have one owner: no page turn, menu step or held repeat.
   if (gpio.hasTouch() && ((buttonIndex == HalGPIO::BTN_UP && !sideNavigates(SETTINGS.sideLeftAction)) ||
                           (buttonIndex == HalGPIO::BTN_DOWN && !sideNavigates(SETTINGS.sideRightAction))))
@@ -595,7 +647,14 @@ void MappedInputManager::settleReleaseGate() const {
   releaseGate.settle(pressEdges, releaseEdges, heldMask);
 }
 
+void MappedInputManager::cancelPhysicalSidePresses() const {
+  for (auto& input : sidePresses) input.reset();
+  sideNavigationEdges = 0;
+  sideNavigationHeldMs = 0;
+}
+
 void MappedInputManager::swallowNextReleaseOfHeldButtons() const {
+  cancelPhysicalSidePresses();
   uint8_t heldMask = 0;
   for (const uint8_t index : GATED_BUTTONS) {
     // isPressed OR wasPressed: applyStateChange() sets currentState from the
@@ -612,7 +671,10 @@ void MappedInputManager::swallowNextReleaseOfHeldButtons() const {
 
 unsigned long MappedInputManager::getHeldTime() const {
   // A mapped action has its own meaning, independent of the contact duration.
-  if (homeAction != HomeButtonAction::Ignore || remoteInput.button != RemoteButton::None) return 0;
+  if (sideEvent.action != SideButtonAction::Navigation || homeAction != HomeButtonAction::Ignore ||
+      remoteInput.button != RemoteButton::None)
+    return 0;
+  if (sideNavigationEdges) return sideNavigationHeldMs;
   if (!gpio.wasAnyPressed() && !gpio.wasAnyReleased() && touchHeldOverrideValid &&
       millis() - touchHeldOverrideAt <= TOUCH_HELD_OVERRIDE_WINDOW_MS) {
     return touchHeldOverrideMs;

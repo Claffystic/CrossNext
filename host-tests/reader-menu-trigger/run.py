@@ -17,8 +17,11 @@ def method(path, signature):
 
 (OUT / 'reader-dispatch-production.inc').write_text(method(
     'src/activities/reader/ReaderActivity.cpp', 'bool ReaderActivity::handleReaderTextSettingsGesture()'), encoding='utf8')
-(OUT / 'button-routing-production.inc').write_text(method(
-    'src/MappedInputManager.cpp', 'bool MappedInputManager::readButton('), encoding='utf8')
+(OUT / 'button-routing-production.inc').write_text(
+    'namespace side_button {\n' + method('src/SideButtonSettings.h',
+        'inline constexpr uint8_t CrossPointSettings::* actionField(') + '\n}\n' +
+    method('src/MappedInputManager.cpp', 'bool MappedInputManager::readButton(') + '\n' +
+    method('src/MappedInputManager.cpp', 'void MappedInputManager::updateSideButtonBindings('), encoding='utf8')
 source = (ROOT / 'src/activities/settings/TextSettingsActivity.cpp').read_text(encoding='utf8')
 start = source.index('      case readertext::CopyDefaults:')
 (OUT / 'defaults-production.inc').write_text(source[start:source.index(

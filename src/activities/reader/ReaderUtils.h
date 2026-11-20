@@ -76,8 +76,9 @@ inline PageTurnResult detectPageTurn(const MappedInputManager& input) {
     return input.wasLongPressed(button, SKIP_HOLD_MS) || input.wasReleased(button);
   };
   const bool prev =
-      tiltPrev || (pageButtonTriggered(MappedInputManager::Button::PageBack) || pageButtonTriggered(prevButton));
-  const bool powerTurn = SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::PAGE_TURN &&
+      input.homeButtonAction() == HomeButtonAction::PreviousPage || tiltPrev ||
+      pageButtonTriggered(MappedInputManager::Button::PageBack) || pageButtonTriggered(prevButton);
+  const bool powerTurn = !input.hasTouch() && SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::PAGE_TURN &&
                          input.wasReleased(MappedInputManager::Button::Power);
   const bool next = input.homeButtonAction() == HomeButtonAction::NextPage || tiltNext ||
                     pageButtonTriggered(MappedInputManager::Button::PageForward) || powerTurn ||

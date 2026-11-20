@@ -20,16 +20,28 @@ enum class HomeButtonAction : uint8_t {
   OpenShortcut,
   OpenDoubleShortcut,
   OpenLongShortcut,
+  Sleep,
+  PowerMenu,
+  ToggleWarmth,
+  PreviousPage,
+  PreviousChapter,
+  NextChapter,
+  RotateLeft,
+  RotateRight,
   Count
 };
 
 constexpr bool selectableHomeAction(HomeButtonAction action) {
   return action != HomeButtonAction::Dictionary && action != HomeButtonAction::CreateClipping &&
-         action != HomeButtonAction::Footnotes && uint8_t(action) <= uint8_t(HomeButtonAction::OpenShortcut);
+         action != HomeButtonAction::Footnotes && action != HomeButtonAction::OpenDoubleShortcut &&
+         action != HomeButtonAction::OpenLongShortcut && action < HomeButtonAction::Count;
 }
 constexpr bool readerHomeAction(HomeButtonAction action) {
   return action == HomeButtonAction::NextPage || action == HomeButtonAction::Bookmark ||
-         action == HomeButtonAction::ReaderMenu || action == HomeButtonAction::Sync;
+         action == HomeButtonAction::ReaderMenu || action == HomeButtonAction::Sync ||
+         action == HomeButtonAction::PreviousPage || action == HomeButtonAction::PreviousChapter ||
+         action == HomeButtonAction::NextChapter || action == HomeButtonAction::RotateLeft ||
+         action == HomeButtonAction::RotateRight;
 }
 
 class HomeButtonInput {

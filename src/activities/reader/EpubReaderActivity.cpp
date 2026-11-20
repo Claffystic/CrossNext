@@ -979,7 +979,7 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::CREATE_CLIPPING &&
+  if (!mappedInput.hasTouch() && SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::CREATE_CLIPPING &&
       mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       !mappedInput.wasReleased(MappedInputManager::Button::Down)) {
     startClipSelection();
@@ -987,13 +987,32 @@ void EpubReaderActivity::loop() {
   }
 
   if ((!endOfBookMenuOpen && mappedInput.homeButtonAction() == HomeButtonAction::Footnotes) ||
-      (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::FOOTNOTES &&
+      (!mappedInput.hasTouch() && SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::FOOTNOTES &&
        mappedInput.wasReleased(MappedInputManager::Button::Power) &&
        !mappedInput.wasReleased(MappedInputManager::Button::Down))) {
     if (footnoteDepth > 0) {
       restoreSavedPosition();
     } else {
       openFootnoteSelect(false);
+    }
+    return;
+  }
+
+  const auto buttonAction = mappedInput.homeButtonAction();
+  if (!endOfBookMenuOpen &&
+      (buttonAction == HomeButtonAction::RotateLeft || buttonAction == HomeButtonAction::RotateRight)) {
+    const bool clockwise = buttonAction == HomeButtonAction::RotateRight;
+    applyOrientation(
+        uint8_t(rotation::readerNext(SETTINGS.orientation, clockwise, SETTINGS.readerFourOrientations != 0)));
+    return;
+  }
+  if (!endOfBookMenuOpen &&
+      (buttonAction == HomeButtonAction::PreviousChapter || buttonAction == HomeButtonAction::NextChapter)) {
+    pendingManualTurn = 0;
+    if (section && !formatReflowPending) {
+      const int step = buttonAction == HomeButtonAction::NextChapter ? 1 : -1;
+      notePageTurn(false, jumpToSpine(currentSpineIndex + step));
+      requestUpdate();
     }
     return;
   }
@@ -1557,6 +1576,20 @@ bool EpubReaderActivity::pageTurn(bool isForwardTurn) {
     }
   }
   return false;
+}
+
+bool EpubReaderActivity::jumpToSpine(int target) {
+  const int count = epub->getSpineItemsCount();
+  if (count <= 0) return false;
+  target = std::clamp(target, 0, count - 1);
+  if (target == currentSpineIndex) return false;
+
+  RenderLock lock;
+  clearDeferredReposition();
+  nextPageNumber = 0;
+  currentSpineIndex = target;
+  resetSection();
+  return true;
 }
 
 bool EpubReaderActivity::skipPages(int amount) {
@@ -3688,15 +3721,7 @@ void EpubReaderActivity::handleOverlayInput() {
   // Jump to another spine item (chapter scrub). The overlay stays up and is
   // re-drawn over the new page by renderBook().
   const auto gotoSpine = [this](int target) {
-    const int spineCount = epub->getSpineItemsCount();
-    target = std::clamp(target, 0, spineCount - 1);
-    if (target != currentSpineIndex) {
-      RenderLock lock;
-      clearDeferredReposition();
-      nextPageNumber = 0;
-      currentSpineIndex = target;
-      resetSection();
-    }
+    jumpToSpine(target);
     requestUpdate();
   };
   const auto toolOverlay = [](int tool) {

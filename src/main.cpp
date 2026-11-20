@@ -1320,10 +1320,12 @@ void loop() {
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }
 
+  static PhysicalButtonInput powerPressInput;
   // Let wake continue as soon as its hold has been verified. The release can
   // arrive after setup, so consume that one input frame rather than making it
   // a page turn, refresh, or other short power-button action.
   if (wakePowerReleasePending && !gpio.isPressed(HalGPIO::BTN_POWER)) {
+    powerPressInput.reset();
     wakePowerReleasePending = false;
     return;
   }
@@ -1333,6 +1335,8 @@ void loop() {
   if ((!BoardConfig::hasTouch() || sideNavigates(SETTINGS.sideRightAction)) && gpio.isPressed(HalGPIO::BTN_POWER) &&
       gpio.isPressed(HalGPIO::BTN_DOWN)) {
     screenshotComboActive = true;
+    powerPressInput.reset();
+    mappedInputManager.cancelPhysicalSidePresses();
     if (screenshotButtonsReleased) {
       screenshotButtonsReleased = false;
       {
@@ -1353,6 +1357,7 @@ void loop() {
     screenshotComboActive = false;
   }
 
+  const char* powerShortcut = nullptr;
   if (BoardConfig::hasTouch()) {
     const auto powerAction = powermenu::take();
     if (powerAction != powermenu::Action::None) {
@@ -1371,13 +1376,32 @@ void loop() {
       return;
     }
     static powermenu::ButtonPolicy powerButton;
+    const bool powerAllowed = millis() >= allowSleepAt && !wakePowerReleasePending;
     const auto physicalPress =
         powerButton.update(gpio.isPressed(HalGPIO::BTN_POWER), gpio.wasReleased(HalGPIO::BTN_POWER),
-                           gpio.getPowerButtonHeldTime(), millis() >= allowSleepAt);
-    const auto press = mappedInputManager.remotePowerClick() && millis() >= allowSleepAt
-                           ? powermenu::ButtonAction::ShortPress
-                           : physicalPress;
-    switch (powermenu::configuredAction(press, SETTINGS.touchPowerShortAction, SETTINGS.touchPowerLongAction)) {
+                           gpio.getPowerButtonHeldTime(), powerAllowed);
+    const bool doubleEnabled = BoardConfig::isX4Pro() &&
+                               SETTINGS.touchPowerDoubleAction != uint8_t(powermenu::PressAction::Ignore);
+    const bool remotePower = mappedInputManager.remotePowerClick() && powerAllowed;
+    auto gesture = physicalPress == powermenu::ButtonAction::LongPress && !remotePower ? PhysicalPress::Hold
+                                                                                     : PhysicalPress::Single;
+    auto action = powermenu::configuredAction(remotePower ? powermenu::ButtonAction::ShortPress : physicalPress,
+                                               SETTINGS.touchPowerShortAction, SETTINGS.touchPowerLongAction);
+    if (doubleEnabled && powerAllowed) {
+      const auto detected = powerPressInput.update(millis(), gpio.wasPressed(HalGPIO::BTN_POWER),
+                                                   gpio.wasReleased(HalGPIO::BTN_POWER),
+                                                   gpio.isPressed(HalGPIO::BTN_POWER), true, true);
+      if (!remotePower) {
+        gesture = detected;
+        action = powermenu::configuredAction(gesture, SETTINGS.touchPowerShortAction, SETTINGS.touchPowerDoubleAction,
+                                             SETTINGS.touchPowerLongAction);
+      }
+    } else {
+      powerPressInput.reset();
+    }
+    if (action == powermenu::PressAction::Ignore && mappedInputManager.homeButtonAction() == HomeButtonAction::PowerMenu)
+      action = powermenu::PressAction::Menu;
+    switch (action) {
       case powermenu::PressAction::Sleep:
         enterDeepSleep();
         return;
@@ -1388,20 +1412,17 @@ void loop() {
         else
           LOG_ERR("POWER", "OOM: power menu");
         break;
-      case powermenu::PressAction::ToggleLight:
-        toggleFrontlight();
-        break;
       case powermenu::PressAction::Warmth:
-        toggleWarmFrontlight();
+        mappedInputManager.setGlobalHomeAction(HomeButtonAction::ToggleWarmth);
         break;
-      case powermenu::PressAction::Refresh:
-        mappedInputManager.setGlobalHomeAction(HomeButtonAction::Refresh);
-        break;
-      case powermenu::PressAction::Home:
-        mappedInputManager.setGlobalHomeAction(HomeButtonAction::Home);
+      case powermenu::PressAction::OpenShortcut:
+        powerShortcut = powermenu::shortcutTarget(gesture);
         break;
       case powermenu::PressAction::Ignore:
       case powermenu::PressAction::Count:
+        break;
+      default:
+        mappedInputManager.setGlobalHomeAction(sideHomeAction(powermenu::BINDINGS[unsigned(action)]));
         break;
     }
   }
@@ -1497,29 +1518,47 @@ void loop() {
   }
 #endif
 
-  if (mappedInputManager.sideButtonAction() == SideButtonAction::Sleep && millis() >= allowSleepAt) {
+  if ((mappedInputManager.sideButtonAction() == SideButtonAction::Sleep ||
+       mappedInputManager.homeButtonAction() == HomeButtonAction::Sleep) && millis() >= allowSleepAt) {
     enterDeepSleep();
     return;
   }
 
   // Refresh screen when power button is short-pressed with FORCE_REFRESH setting.
-  const char* shortcutTitle = home_button::opensShortcut(mappedInputManager.homeButtonAction())
+  const char* shortcutTitle = powerShortcut ? powerShortcut
+                              : home_button::opensShortcut(mappedInputManager.homeButtonAction())
                                   ? home_button::shortcutTarget(mappedInputManager.homeButtonAction())
                               : mappedInputManager.sideButtonAction() == SideButtonAction::OpenShortcut
-                                  ? side_button::shortcutTarget(mappedInputManager.sideButtonKey())
+                                  ? side_button::shortcutTarget(mappedInputManager.sideButtonKey(),
+                                                                mappedInputManager.sideButtonPress())
                                   : nullptr;
   if (shortcutTitle) {
     openShelfShortcut(shortcutTitle);
   }
+  static std::optional<uint32_t> touchToastShownAt;
+  constexpr uint32_t kTouchToastMs = 1200;
   if (mappedInputManager.homeButtonAction() == HomeButtonAction::ToggleTouchscreen && gpio.hasHomeKey()) {
     SETTINGS.touchScreenLocked = SETTINGS.touchScreenLocked ? 0 : 1;
     mappedInputManager.swallowCurrentTouch();
     mappedInputManager.resetHomeButtonInput();
     SETTINGS.saveToFile();
+    RenderLock lock;
+    HalPowerManager::Lock powerLock;
+    const auto toast = GUI.drawPopup(renderer, SETTINGS.touchScreenLocked ? tr(STR_TOUCHSCREEN_DISABLED)
+                                                                          : tr(STR_TOUCHSCREEN_ENABLED),
+                                     /*preserveFrame=*/true);
+    if (toast.width > 0)
+      touchToastShownAt = millis();
+    else
+      activityManager.requestUpdate();
+  }
+  if (touchToastShownAt && uint32_t(millis() - *touchToastShownAt) >= kTouchToastMs) {
+    touchToastShownAt.reset();
     activityManager.requestUpdate();
   }
   const bool lightPanelOpen = std::strcmp(activityManager.currentActivityName(), "FrontlightPanel") == 0;
-  if (!lightPanelOpen && mappedInputManager.sideButtonAction() == SideButtonAction::ToggleWarmth)
+  if (!lightPanelOpen && (mappedInputManager.sideButtonAction() == SideButtonAction::ToggleWarmth ||
+                          mappedInputManager.homeButtonAction() == HomeButtonAction::ToggleWarmth))
     toggleWarmFrontlight();
   if (!lightPanelOpen && mappedInputManager.homeButtonAction() == HomeButtonAction::ToggleFrontlight) {
     toggleFrontlight();
@@ -1581,6 +1620,7 @@ void loop() {
   const uint32_t now = millis();
   loopdeadline::Deadline next(now);
   if (edgeLightDirty) next.after(edgeLightChangedAt, 1500);
+  if (touchToastShownAt) next.after(*touchToastShownAt, kTouchToastMs);
   {
     RenderLock lock(RenderLock::Mode::Try);
     if (!lock.ownsLock()) {
@@ -1637,6 +1677,7 @@ void loop() {
 #endif
   if (SETTINGS.tiltPageTurn && activityManager.isReaderActivity() && halTiltSensor.isAvailable()) next.limit(50);
   next.limit(mappedInputManager.nextActionDelayMs(now, next.delayMs()));
+  next.limit(powerPressInput.nextDelay(now, next.delayMs()));
 #ifdef SIMULATOR
   // SDL input is polled by the simulator HAL, without device GPIO interrupts.
   delay(std::min(next.delayMs(), loopdeadline::LEGACY_POLL_MS));

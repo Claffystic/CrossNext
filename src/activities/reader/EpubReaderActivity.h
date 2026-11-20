@@ -317,6 +317,7 @@ class EpubReaderActivity final : public ReaderActivity {
   bool inputOverPage() const override { return overlay != Overlay::None || endOfBookMenuActive(); }
   bool pageTurn(bool isForward) override;
   bool skipPages(int amount) override;
+  bool jumpToSpine(int target);
   bool isAtEndOfBook() const override;
   bool saveFinishedPosition() override;
   void onReturnFromEndOfBook() override;

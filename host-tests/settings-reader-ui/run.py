@@ -9,19 +9,27 @@ start=canvas.index('struct FontBridge {');end=canvas.index('\n};',start)+3;canva
 canvas=canvas.replace('#pragma GCC diagnostic pop','#include "lib/EpdFont/builtinFonts/ubuntu_12_regular.h"\n#include "lib/EpdFont/builtinFonts/ubuntu_10_regular.h"\n#pragma GCC diagnostic pop')
 src=(root/'src/activities/settings/TextSettingsActivity.cpp').read_text(encoding='utf-8');start=src.index('bool TextSettingsActivity::handleCustomInput()');body=src[start:src.index('\n}',start)+2]
 settings=(root/'src/activities/settings/SettingsActivity.cpp').read_text(encoding='utf-8')
-def method(name):
- start=settings.index('void SettingsActivity::'+name) if name!='handleButtons' else settings.index('bool SettingsActivity::handleButtons')
+def method(signature):
+ start=settings.index(signature + '(')
  return settings[start:settings.index('\n}',start)+2]
 nav=(root/'host-tests/settings-reader-ui/SettingsNavigation.h').read_text(encoding='utf-8')
-nav=nav.replace('PRODUCTION_NAV_METHODS','\n'.join(method(x) for x in ['openManga','closeManga','handleButtons']))
-rebuild=method('rebuildSettingsLists')
-entry=rebuild.splitlines()[1]
+navigation_methods = (
+    'void SettingsActivity::openManga',
+    'void SettingsActivity::closeManga',
+    'bool SettingsActivity::handleButtons',
+    'StrId SettingsActivity::buttonPageTitle',
+    'void SettingsActivity::openButtonPage',
+    'void SettingsActivity::closeButtonPage',
+)
+nav = nav.replace('PRODUCTION_NAV_METHODS', '\n'.join(map(method, navigation_methods)))
+rebuild=method('void SettingsActivity::rebuildSettingsLists')
+entry=rebuild[rebuild.index('  const bool mangaOpen'):rebuild.index('  displaySettings.clear()')].rstrip()
 returns=rebuild[rebuild.rindex('  if (categoryHome)'):rebuild.rindex('\n}')]
 nav=nav.replace('PRODUCTION_REBUILD_ENTRY',entry).replace('PRODUCTION_REBUILD_RETURN',returns)
 (out/'SettingsNavigation.generated.h').write_text(nav,encoding='utf-8')
 program=canvas+(root/'host-tests/settings-reader-ui/test.cpp').read_text(encoding='utf-8');program=program.replace('PRODUCTION_INPUT_METHOD',body)
 cpp=out/'production-ui.cpp';cpp.write_text(program,encoding='utf-8')
 compiler=root/'.venv/emsdk/upstream/emscripten/em++.exe';exe=out/'tests.cjs'
-includes=[str(out),'.','test/reader_font_sheet','test/language_pack/stubs','host-tests/reading-suite/stubs','lib/I18n','lib/EpdFont','freeink-sdk/libs/ui/FreeInkUI/include','freeink-sdk/libs/assets/Icons/include']
+includes=[str(out),'.','test/reader_font_sheet','test/language_pack/stubs','host-tests/reading-suite/stubs','lib/I18n','lib/EpdFont','lib/BlePageTurner/include','freeink-sdk/libs/network/BleKeyboardHost/include','freeink-sdk/libs/ui/FreeInkUI/include','freeink-sdk/libs/assets/Icons/include']
 subprocess.run([str(compiler),'-std=c++20','-O1','-Wall','-Wextra','-Werror','-Wno-comment',*['-I'+x for x in includes],str(cpp),'src/apps_local/ui/PixelMenu.cpp','lib/I18n/I18n.cpp','lib/I18n/I18nStrings.cpp','lib/I18n/LanguagePack.cpp','freeink-sdk/libs/ui/FreeInkUI/src/FreeInkUI.cpp','-sENVIRONMENT=node','-sNODERAWFS=1','-sEXIT_RUNTIME=1','-sSTACK_SIZE=1048576','-sALLOW_MEMORY_GROWTH=1','-o',str(exe)],cwd=root,check=True)
 subprocess.run(['node',str(exe),out.as_posix()],cwd=root,check=True)

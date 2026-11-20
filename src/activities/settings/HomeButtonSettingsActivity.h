@@ -7,25 +7,26 @@
 
 class HomeButtonSettingsActivity final : public UiListActivity {
  public:
-  enum class Binding : uint8_t { Home, SideLeft, SideRight, Remote1, Remote2 };
+  enum class Binding : uint8_t { Home, SideLeft, SideRight, Remote1, Remote2, Power };
   HomeButtonSettingsActivity(GfxRenderer& renderer, MappedInputManager& input, Binding binding = Binding::Home,
-                             bleturner::RemoteTable* remote = nullptr)
+                             bleturner::RemoteTable* remote = nullptr, PhysicalPress press = PhysicalPress::Single)
       : UiListActivity("HomeButtonSettings", renderer, input, false, true),
         binding(binding),
         page(binding == Binding::Home ? Page::Gestures : Page::Actions),
-        remote(remote) {}
+        remote(remote),
+        press(press) {}
   void onEnter() override;
 
  private:
   enum class Page : uint8_t { Gestures, Actions, Apps, Timing };
   static constexpr int GESTURE_COUNT = 3;
-  static constexpr int HOME_ACTION_COUNT = int(HomeButtonAction::OpenShortcut) + 1;
   static constexpr int ROW_COUNT = remoteshortcuts::COUNT > int(SideButtonAction::Count) ? remoteshortcuts::COUNT
                                                                                          : int(SideButtonAction::Count);
   freeink::ui::ListItem rows[ROW_COUNT]{};
   Binding binding;
   Page page;
   bleturner::RemoteTable* remote;
+  PhysicalPress press;
   int gesture = 0;
   bool saveFailed = false;
 

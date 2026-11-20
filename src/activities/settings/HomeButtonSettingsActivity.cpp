@@ -26,10 +26,12 @@ uint8_t& HomeButtonSettingsActivity::storedAction() const {
   switch (binding) {
     case Binding::Home:
       return SETTINGS.*home_button::FIELDS[gesture];
+    case Binding::Power:
+      return SETTINGS.*powermenu::actionField(press);
     case Binding::SideLeft:
-      return SETTINGS.sideLeftAction;
     case Binding::SideRight:
-      return SETTINGS.sideRightAction;
+      return SETTINGS.*side_button::actionField(
+          binding == Binding::SideLeft ? SideButtonKey::Left : SideButtonKey::Right, press);
     case Binding::Remote1:
     case Binding::Remote2:
       return remote->shortcuts[binding == Binding::Remote1 ? 0 : 1].action;
@@ -40,10 +42,12 @@ char* HomeButtonSettingsActivity::shortcutTarget() const {
   switch (binding) {
     case Binding::Home:
       return home_button::shortcutTarget(gesture);
+    case Binding::Power:
+      return powermenu::shortcutTarget(press);
     case Binding::SideLeft:
-      return SETTINGS.sideLeftShortcutTitle;
     case Binding::SideRight:
-      return SETTINGS.sideRightShortcutTitle;
+      return side_button::shortcutTarget(binding == Binding::SideLeft ? SideButtonKey::Left : SideButtonKey::Right,
+                                         press);
     case Binding::Remote1:
     case Binding::Remote2:
       return remote->shortcuts[binding == Binding::Remote1 ? 0 : 1].title;
@@ -53,20 +57,25 @@ char* HomeButtonSettingsActivity::shortcutTarget() const {
 bool HomeButtonSettingsActivity::isShortcut() const {
   const auto value = storedAction();
   return binding == Binding::Home ? home_button::opensShortcut(HomeButtonAction(value))
-                                  : value == uint8_t(SideButtonAction::OpenShortcut);
+                                  : value == shortcutIndex();
 }
 int HomeButtonSettingsActivity::shortcutIndex() const {
-  return binding == Binding::Home ? int(HomeButtonAction::OpenShortcut) : int(SideButtonAction::OpenShortcut);
+  if (binding == Binding::Home) return int(HomeButtonAction::OpenShortcut);
+  if (binding == Binding::Power) return int(powermenu::PressAction::OpenShortcut);
+  return int(SideButtonAction::OpenShortcut);
 }
 int HomeButtonSettingsActivity::actionAt(int row) const {
   if (remote) return row >= 0 && row < remoteshortcuts::COUNT ? remoteshortcuts::CHOICES[row].action : -1;
-  const int count = binding == Binding::Home ? HOME_ACTION_COUNT : int(SideButtonAction::Count);
-  for (int action = 0; action < count; ++action) {
-    const bool selectable = binding == Binding::Home ? selectableHomeAction(HomeButtonAction(action))
-                            : remote && action == int(SideButtonAction::Navigation)
-                                ? false
-                                : selectableSideAction(SideButtonAction(action));
-    if (selectable && row-- == 0) return action;
+  for (int index = 0; index < int(SideButtonAction::Count); ++index) {
+    const auto action = SideButtonAction(index);
+    if (!selectableSideAction(action)) continue;
+    if (action == SideButtonAction::Navigation &&
+        (binding == Binding::Home || binding == Binding::Power || press == PhysicalPress::Double))
+      continue;
+    if (row-- != 0) continue;
+    if (binding == Binding::Home) return int(homeBindingAction(action));
+    if (binding == Binding::Power) return powermenu::bindingIndex(action);
+    return index;
   }
   return -1;
 }
@@ -101,6 +110,9 @@ const char* HomeButtonSettingsActivity::headerTitle() const {
     case Page::Timing:
       return tr(STR_HOME_TAP_INTERVAL);
     case Page::Actions:
+      if (press == PhysicalPress::Double) return tr(STR_BUTTON_DOUBLE_PRESS);
+      if (press == PhysicalPress::Hold) return tr(STR_BUTTON_HOLD);
+      if (binding == Binding::Power) return tr(STR_BUTTON_SINGLE_PRESS);
       if (binding == Binding::SideLeft) return tr(STR_SIDE_LEFT_ACTION);
       if (binding == Binding::SideRight) return tr(STR_SIDE_RIGHT_ACTION);
       if (binding == Binding::Remote1) return tr(STR_BT_SHORTCUT_1);
@@ -190,7 +202,7 @@ void HomeButtonSettingsActivity::activateIndex(int index) {
     case Page::Apps:
       if (const auto* item = shortcutAt(index)) {
         const uint8_t action = binding == Binding::Home ? uint8_t(home_button::shortcutAction(gesture))
-                                                        : uint8_t(SideButtonAction::OpenShortcut);
+                                                        : uint8_t(shortcutIndex());
         saveAction(action, item->title);
       }
       return;
@@ -219,7 +231,8 @@ void HomeButtonSettingsActivity::buildScreen(UiScreen& screen) {
   pixelui::FontScope fonts(uiTarget, renderer, I18N.getLanguage() != Language::EN);
   useCompactSettingsRows();
   pixelui::begin(screen, saveFailed ? 52 : 0);
-  if (binding != Binding::Home && page == Page::Actions) {
+  const bool isSide = binding == Binding::SideLeft || binding == Binding::SideRight;
+  if ((remote || (isSide && press == PhysicalPress::Single)) && page == Page::Actions) {
     const auto body = screen.body();
     fui::TextStyle help;
     help.font = 4;
@@ -272,16 +285,20 @@ void HomeButtonSettingsActivity::buildScreen(UiScreen& screen) {
           continue;
         }
         const auto current = storedAction();
-        const auto labels = binding == Binding::Home ? std::span<const StrId>(home_button::ACTION_LABELS)
-                                                     : std::span<const StrId>(side_button::LABELS);
+        const auto labels = binding == Binding::Home  ? std::span<const StrId>(home_button::ACTION_LABELS)
+                            : binding == Binding::Power ? std::span<const StrId>(powermenu::ACTION_LABELS)
+                                                        : std::span<const StrId>(side_button::LABELS);
         const int action = actionAt(i);
-        rows[i].label = I18N.get(labels[action]);
+        rows[i].label = isSide && press == PhysicalPress::Hold && action == int(SideButtonAction::Navigation)
+                            ? tr(STR_BUTTON_SHARED_HOLD)
+                            : I18N.get(labels[action]);
         rows[i].toggle = binding != Binding::Home;
         rows[i].toggleChecked = isShortcut() ? action == shortcutIndex() : action == int(current);
         if (action == shortcutIndex())
           rows[i].subtitle = shelf::label(shortcutTarget());
-        else if (readerHomeAction(binding == Binding::Home ? HomeButtonAction(action)
-                                                           : sideHomeAction(SideButtonAction(action))))
+        else if (readerHomeAction(binding == Binding::Home  ? HomeButtonAction(action)
+                                  : binding == Binding::Power ? sideHomeAction(powermenu::BINDINGS[action])
+                                                              : sideHomeAction(SideButtonAction(action))))
           rows[i].subtitle = tr(STR_BUTTON_READER_ONLY);
       }
     }

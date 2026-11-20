@@ -1,6 +1,7 @@
 #pragma once
 
 #include "HomeButtonInput.h"
+#include "PhysicalButtonInput.h"
 
 enum class SideButtonAction : uint8_t {
   Navigation,
@@ -20,6 +21,12 @@ enum class SideButtonAction : uint8_t {
   NextPage,
   Footnotes,
   Confirm,
+  PreviousPage,
+  PreviousChapter,
+  NextChapter,
+  RotateLeft,
+  RotateRight,
+  PowerMenu,
   Count
 };
 
@@ -27,6 +34,7 @@ enum class SideButtonKey : uint8_t { Left, Right };
 struct SideButtonEvent {
   SideButtonAction action = SideButtonAction::Navigation;
   SideButtonKey key = SideButtonKey::Left;
+  PhysicalPress press = PhysicalPress::Single;
 };
 
 constexpr bool sideNavigates(uint8_t action) { return action == static_cast<uint8_t>(SideButtonAction::Navigation); }
@@ -73,6 +81,18 @@ constexpr HomeButtonAction sideHomeAction(SideButtonAction action) {
       return HomeButtonAction::Footnotes;
     case SideButtonAction::Confirm:
       return HomeButtonAction::Confirm;
+    case SideButtonAction::PreviousPage:
+      return HomeButtonAction::PreviousPage;
+    case SideButtonAction::PreviousChapter:
+      return HomeButtonAction::PreviousChapter;
+    case SideButtonAction::NextChapter:
+      return HomeButtonAction::NextChapter;
+    case SideButtonAction::RotateLeft:
+      return HomeButtonAction::RotateLeft;
+    case SideButtonAction::RotateRight:
+      return HomeButtonAction::RotateRight;
+    case SideButtonAction::PowerMenu:
+      return HomeButtonAction::PowerMenu;
     case SideButtonAction::Navigation:
     case SideButtonAction::Sleep:
     case SideButtonAction::Ignore:
@@ -82,6 +102,19 @@ constexpr HomeButtonAction sideHomeAction(SideButtonAction action) {
       return HomeButtonAction::Ignore;
   }
   return HomeButtonAction::Ignore;
+}
+
+constexpr HomeButtonAction homeBindingAction(SideButtonAction action) {
+  switch (action) {
+    case SideButtonAction::Sleep:
+      return HomeButtonAction::Sleep;
+    case SideButtonAction::ToggleWarmth:
+      return HomeButtonAction::ToggleWarmth;
+    case SideButtonAction::OpenShortcut:
+      return HomeButtonAction::OpenShortcut;
+    default:
+      return sideHomeAction(action);
+  }
 }
 
 constexpr bool selectableSideAction(SideButtonAction action) {

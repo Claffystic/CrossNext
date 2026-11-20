@@ -8,6 +8,7 @@
 #include <HalPowerManager.h>
 #include <HalStorage.h>
 #include <Logging.h>
+#include <Memory.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -788,7 +789,7 @@ Rect BaseTheme::drawLoadingScreen(const GfxRenderer& renderer, const char* messa
   return drawPopup(renderer, message);
 }
 
-Rect BaseTheme::drawPopup(const GfxRenderer& renderer, const char* message) const {
+Rect BaseTheme::drawPopup(const GfxRenderer& renderer, const char* message, const bool preserveFrame) const {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int marginX = metrics.popupMarginX;
   const int marginY = metrics.popupMarginY;
@@ -808,21 +809,29 @@ Rect BaseTheme::drawPopup(const GfxRenderer& renderer, const char* message) cons
   const auto& box = popup.body;
   const int x = box.x, y = box.y, w = box.width, h = box.height;
 
+  std::unique_ptr<uint8_t[]> background;
+  const size_t bytes = preserveFrame ? renderer.getRegionByteSize(x, y, w, h) : 0;
+  if (preserveFrame) {
+    if (!renderer.hasFrameBuffer() || bytes == 0) return Rect{};
+    background = makeUniqueNoThrow<uint8_t[]>(bytes);
+    if (!background || !renderer.copyRegionToBuffer(x, y, w, h, background.get(), bytes)) return Rect{};
+  }
+
   if (chrome::lightHeader) {
     target.fill(box, lightui::paper, 6);
     target.stroke(box, freeink::ui::Paint::solid(freeink::ui::Color::Black), 1, 6);
     target.text(popup.text, message, popup.style);
-    renderer.displayBuffer();
-    return Rect{x, y, w, h};
+  } else {
+    popupui::paintChrome(target, popup, frameThickness, metrics.popupCornerRadius);
+    const auto family = metrics.popupTextBold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+    freeink::ui::layoutText(target, popup.text, message, popup.style, [&](const char* line, freeink::ui::Rect run) {
+      renderer.drawText(UI_12_FONT_ID, run.x, run.y + metrics.popupTextBaselineOffsetY, line, metrics.popupTextInverted,
+                        family);
+    });
   }
-  popupui::paintChrome(target, popup, frameThickness, metrics.popupCornerRadius);
-
-  const auto family = metrics.popupTextBold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
-  freeink::ui::layoutText(target, popup.text, message, popup.style, [&](const char* line, freeink::ui::Rect run) {
-    renderer.drawText(UI_12_FONT_ID, run.x, run.y + metrics.popupTextBaselineOffsetY, line, metrics.popupTextInverted,
-                      family);
-  });
   renderer.displayBuffer();
+  // Keep the differential baseline on the popup until the next repaint erases it.
+  if (background) renderer.copyBufferToRegion(x, y, w, h, background.get(), bytes);
   return Rect{x, y, w, h};
 }
 

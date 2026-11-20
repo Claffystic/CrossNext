@@ -39,6 +39,9 @@ enum class SettingAction {
   ReadingFormats,
   About,
   Manga,
+  LeftButton,
+  RightButton,
+  PowerButton,
 };
 
 struct SettingInfo {
@@ -196,6 +199,8 @@ class SettingsActivity final : public UiTabListActivity {
   std::vector<SettingInfo> controlsSettings;
   std::vector<SettingInfo> systemSettings, librarySettings, connectivitySettings, deviceSettings;
   std::vector<SettingInfo> mangaSettings;
+  std::vector<SettingInfo> leftButtonSettings, rightButtonSettings, powerButtonSettings;
+  freeink::ui::ListNav buttonReturnNav;
   int mangaReturnTop = 0, mangaReturnSelection = 0;
   const std::vector<SettingInfo>* currentSettings = nullptr;
 
@@ -214,6 +219,9 @@ class SettingsActivity final : public UiTabListActivity {
   std::vector<freeink::ui::ListItem> rowItems_;
   void rebuildRowItems();
   void showCategoryHome();
+  StrId buttonPageTitle() const;
+  void openButtonPage(const std::vector<SettingInfo>& settings);
+  void closeButtonPage();
   void openManga();
   void closeManga();
 

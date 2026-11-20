@@ -26,6 +26,39 @@ int main() {
         "invalid short action stays recoverable");
   check(configuredAction(ButtonAction::LongPress, 255, 255) == PressAction::Menu,
         "invalid hold action opens power menu");
+  static_assert(uint8_t(PressAction::Ignore) == 6);
+  static_assert(uint8_t(PressAction::ToggleTouchscreen) == 7);
+  bool seenHome[unsigned(HomeButtonAction::Count)]{};
+  for (unsigned i = 0; i < unsigned(SideButtonAction::Count); ++i) {
+    const auto shared = SideButtonAction(i);
+    if (!selectableSideAction(shared) || shared == SideButtonAction::Navigation) continue;
+    check(bindingIndex(shared) >= 0, "every shared action is available for Power");
+    const auto home = homeBindingAction(shared);
+    check(selectableHomeAction(home), "every shared action is available for Home");
+    check(!seenHome[unsigned(home)], "each action has its own Home binding");
+    seenHome[unsigned(home)] = true;
+  }
+  for (unsigned i = 0; i < unsigned(HomeButtonAction::Count); ++i)
+    check(seenHome[i] == selectableHomeAction(HomeButtonAction(i)), "Home picker matches the shared list");
+  check(bindingIndex(SideButtonAction::OpenShortcut) == int(PressAction::OpenShortcut), "Power can launch an app");
+
+  PhysicalButtonInput power;
+  const auto powerFrame = [&](uint32_t now, bool pressed, bool released, bool held) {
+    return configuredAction(power.update(now, pressed, released, held, true, true), uint8_t(PressAction::ToggleLight),
+                            uint8_t(PressAction::ToggleTouchscreen), uint8_t(PressAction::Sleep));
+  };
+  check(powerFrame(10, true, false, true) == PressAction::Ignore, "power press waits");
+  check(powerFrame(60, false, true, false) == PressAction::Ignore, "first release does not toggle the light before double");
+  check(powerFrame(130, true, false, true) == PressAction::Ignore, "second press waits for release");
+  check(powerFrame(170, false, true, false) == PressAction::ToggleTouchscreen, "double press toggles touchscreen only");
+  check(powerFrame(500, false, false, false) == PressAction::Ignore, "double press leaves no pending single action");
+  check(powerFrame(600, true, false, true) == PressAction::Ignore, "hold starts without a short action");
+  check(powerFrame(1300, false, false, true) == PressAction::Sleep, "power hold sleeps once");
+  check(powerFrame(1400, false, true, false) == PressAction::Ignore, "release after hold does not toggle the light");
+  check(powerFrame(1500, true, false, true) == PressAction::Ignore, "new short press starts independently");
+  check(powerFrame(1540, false, true, false) == PressAction::Ignore, "short release waits for timeout");
+  check(powerFrame(1891, false, false, false) == PressAction::ToggleLight, "isolated short press toggles light");
+
   for (const auto width : {480, 800}) {
     const int height = width == 480 ? 800 : 480;
     const auto leftUp = edgelight::classify(6, 300, 12, 100, width, height, 1, 2);
