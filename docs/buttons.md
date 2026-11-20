@@ -12,6 +12,11 @@ rotation shortcuts require an open EPUB. The side keys also offer their built-in
 navigation and shared-hold defaults. Holding Home restores touch while the
 touchscreen is locked.
 
+The Home double-tap interval offers 100, 200, 350 (default), 450, 550,
+and 750 ms. Choose **None** to run the assigned single-tap action without
+waiting. The double-tap shortcut stays saved for when you choose a timed
+interval again. The reader's bottom sheet retains its full-width Done button.
+
 ## Assigning the X4 Pro side keys
 
 Under **Settings > Controls**, open **Left** or **Right** in the **Physical buttons** section, then

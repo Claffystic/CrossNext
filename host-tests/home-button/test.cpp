@@ -87,6 +87,12 @@ int main() {
     }
   }
   static_assert(HomeButtonInput::DOUBLE_TAP_MS == 350);
+  HomeButtonInput immediate;
+  immediate.setWindow(HomeButtonInput::NO_DOUBLE_TAP);
+  check(immediate.update(10, true, false, false, false, Action::PreviousPage, Action::ToggleFrontlight,
+                         Action::ReaderMenu) == Action::PreviousPage,
+        "No double-tap interval honors a custom single-tap action immediately");
+  check(immediate.nextActionDelayMs(10, 1000) == 1000, "Disabled double tap leaves no pending action");
   check(HomeButtonInput::windowFor(255) == 350, "Invalid timing uses the existing default");
   for (unsigned setting = 0; setting < HomeButtonInput::TAP_WINDOW_COUNT; ++setting) {
     const auto window = HomeButtonInput::windowFor(setting);

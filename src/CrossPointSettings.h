@@ -390,6 +390,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   }
 
   uint8_t interfaceThemeStyle = 0;
+  uint8_t interfaceHeaderColor = 0;
   uint8_t interfaceThemeOverrides[menufont::kSectionCount]{};
   uint8_t menuFontStyle = uint8_t(menufont::kDefault);
   uint8_t menuFontOverrides[menufont::kSectionCount]{};

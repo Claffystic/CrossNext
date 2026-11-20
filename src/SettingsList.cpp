@@ -215,8 +215,6 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Enum(StrId::STR_RIGHT_EDGE_LIGHT, &CrossPointSettings::rightEdgeLightAction,
                          {StrId::STR_NONE_OPT, StrId::STR_BRIGHTNESS, StrId::STR_WARMTH}, "rightEdgeLightAction",
                          StrId::STR_CAT_CONTROLS));
-  emit(SettingInfo::String(StrId::STR_HOME_SHORTCUT_TARGET, SETTINGS.homeButtonShortcutTitle,
-                           sizeof(SETTINGS.homeButtonShortcutTitle), "homeButtonShortcutTitle"));
   emit(SettingInfo::String(StrId::STR_HOME_SHORTCUT_TARGET, SETTINGS.homeButtonDoubleShortcutTitle,
                            sizeof(SETTINGS.homeButtonDoubleShortcutTitle), "homeButtonDoubleShortcutTitle"));
   emit(SettingInfo::String(StrId::STR_HOME_SHORTCUT_TARGET, SETTINGS.homeButtonLongShortcutTitle,

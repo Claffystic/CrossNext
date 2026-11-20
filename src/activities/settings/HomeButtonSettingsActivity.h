@@ -22,6 +22,7 @@ class HomeButtonSettingsActivity final : public UiListActivity {
   static constexpr int GESTURE_COUNT = 3;
   static constexpr int ROW_COUNT = remoteshortcuts::COUNT > int(SideButtonAction::Count) ? remoteshortcuts::COUNT
                                                                                          : int(SideButtonAction::Count);
+  static_assert(ROW_COUNT >= int(HomeButtonInput::TAP_OPTION_COUNT));
   freeink::ui::ListItem rows[ROW_COUNT]{};
   Binding binding;
   Page page;

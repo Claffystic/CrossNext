@@ -89,7 +89,7 @@ int HomeButtonSettingsActivity::listCount() const {
     case Page::Gestures:
       return GESTURE_COUNT + 1;
     case Page::Timing:
-      return HomeButtonInput::TAP_WINDOW_COUNT;
+      return HomeButtonInput::TAP_OPTION_COUNT;
     case Page::Actions: {
       int count = 0;
       while (actionAt(count) >= 0) ++count;
@@ -180,7 +180,7 @@ void HomeButtonSettingsActivity::activateIndex(int index) {
   switch (page) {
     case Page::Gestures: {
       if (index == GESTURE_COUNT) {
-        show(Page::Timing, SETTINGS.homeButtonDoubleTapTiming);
+        show(Page::Timing, home_button::timingRow(SETTINGS.homeButtonDoubleTapTiming));
         return;
       }
       gesture = index;
@@ -208,8 +208,9 @@ void HomeButtonSettingsActivity::activateIndex(int index) {
       return;
     case Page::Timing: {
       const auto previous = SETTINGS.homeButtonDoubleTapTiming;
-      SETTINGS.homeButtonDoubleTapTiming = static_cast<uint8_t>(index);
-      saveFailed = !SETTINGS.saveToFile();
+      const auto selected = home_button::TIMING_ORDER[index];
+      SETTINGS.homeButtonDoubleTapTiming = selected;
+      saveFailed = selected != previous && !SETTINGS.saveToFile();
       if (saveFailed) {
         SETTINGS.homeButtonDoubleTapTiming = previous;
         requestUpdate();
@@ -253,14 +254,17 @@ void HomeButtonSettingsActivity::buildScreen(UiScreen& screen) {
       rows[i] = {};
       rows[i].actionValue = i;
       if (page == Page::Timing || (page == Page::Gestures && i == GESTURE_COUNT)) {
-        const unsigned current = SETTINGS.homeButtonDoubleTapTiming < HomeButtonInput::TAP_WINDOW_COUNT
+        const unsigned current = SETTINGS.homeButtonDoubleTapTiming < HomeButtonInput::TAP_OPTION_COUNT
                                      ? SETTINGS.homeButtonDoubleTapTiming
                                      : 0;
-        rows[i].label = I18N.get(page == Page::Timing ? home_button::TIMING_LABELS[i] : StrId::STR_HOME_TAP_INTERVAL);
-        if (page == Page::Timing)
-          rows[i].toggleChecked = unsigned(i) == current;
-        else
+        if (page == Page::Timing) {
+          const auto value = home_button::TIMING_ORDER[i];
+          rows[i].label = I18N.get(home_button::TIMING_LABELS[value]);
+          rows[i].toggleChecked = value == current;
+        } else {
+          rows[i].label = tr(STR_HOME_TAP_INTERVAL);
           rows[i].subtitle = I18N.get(home_button::TIMING_LABELS[current]);
+        }
         continue;
       }
       if (page == Page::Gestures) {
